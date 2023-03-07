@@ -1,0 +1,78 @@
+parameters:
+  # String parameters
+  - name: deployment
+  - name: source_directory
+  # Boolean parameters
+  - name: run_tests
+    type: boolean
+
+steps:
+  # Install Tools
+  - task: NodeTool@0
+    displayName: Install node
+    inputs:
+      versionSpec: "18.12.1"
+
+  # Install dev dependencies
+  - bash: npm ci --legacy-peer-deps
+    displayName: Install Dependencies
+    workingDirectory: ${{ parameters.source_directory }}
+
+  # Verify code formatting
+  - bash: npm run format
+    displayName: Run Code Format Check
+    workingDirectory: ${{ parameters.source_directory }}
+    continueOnError: true
+
+  # Perform linting using eslint
+  - bash: npm run lint
+    displayName: Run Code Linting
+    workingDirectory: ${{ parameters.source_directory }}
+
+  # Build React App
+  - bash: |
+      case $REACT_APP_DEPLOYMENT in
+        dev)
+          echo "Executing dev build"
+          npm run build:dev
+          ;;
+        staging)
+          echo "Executing staging build"
+          npm run build:stage
+          ;;
+        production)
+          echo "Executing production build"
+          npm run build:prod
+          ;;
+        *)
+          echo "Defaulting to dev build"
+          npm run build:dev
+          ;;
+      esac
+    workingDirectory: ${{ parameters.source_directory }}
+    displayName: Build React App
+    env:
+      REACT_APP_DEPLOYMENT: ${{ parameters.deployment }}
+
+  # Prune dev dependencies
+  - bash: npm prune --production
+    workingDirectory: ${{ parameters.source_directory }}
+    displayName: Prune Dev Dependencies
+
+  # Conditionally Run Tests
+  - ${{ if eq(parameters.run_tests, true) }}:
+      # Execute unit tests
+      - bash: npm run-script test-ci
+        displayName: Execute Unit Tests
+        workingDirectory: ${{ parameters.source_directory }}
+        continueOnError: true
+
+      # Publish unit test results
+      - task: PublishTestResults@2
+        displayName: Publish Test Results
+        inputs:
+          failTaskOnFailedTests: true
+          mergeTestResults: true
+          testResultsFiles: "**/junit.xml"
+          testResultsFormat: JUnit
+          testRunTitle: Jest Unit Tests

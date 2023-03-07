@@ -1,0 +1,79 @@
+parameters:
+  # String parameters
+  - name: aws_access_key
+  - name: aws_secret_key
+  - name: deployment
+  - name: env_prefix
+  - name: tf_logging_level
+  - name: tfstate_key
+  # Boolean parameters
+  - name: deploy_changes
+    type: boolean
+  - name: run_tests
+    type: boolean
+  # Parameters with default values
+  - name: acm_deployment_location
+    type: string
+    default: us-east-1
+  - name: dependsOn
+    type: object
+    default:
+  - name: deployment_location
+    type: string
+    default: us-west-2
+  - name: domain_name
+    type: string
+    default: healthcarecompliancepros.com
+  - name: is_production_build
+    type: boolean
+    default: false
+  - name: tfstate_bucket
+    type: string
+    default: slate-tfstate
+  - name: tfstate_region
+    type: string
+    default: us-west-2
+
+stages:
+  - stage: FE_BuildTest
+    displayName: Frontend
+    dependsOn: ${{ parameters.dependsOn }}
+    jobs:
+      - job: FE_BuildTest_Job
+        displayName: Build and Deploy Web App
+        steps:
+          - checkout: self
+          - checkout: slate-frontend
+            clean: true
+            fetchTags: true
+            fetchDepth: 0
+            persistCredentials: true
+
+          - ${{ if eq(parameters.is_production_build, true) }}:
+              - bash: |
+                  git fetch --all
+                  git reset --hard origin/master
+                displayName: Get Latest Code
+                workingDirectory: $(Build.SourcesDirectory)/slate-frontend
+
+          - template: build-steps.template.yaml
+            parameters:
+              deployment: ${{ parameters.deployment }}
+              run_tests: ${{ parameters.run_tests }}
+              source_directory: $(Build.SourcesDirectory)/slate-frontend
+
+          - template: terraform-steps.template.yaml
+            parameters:
+              acm_deployment_location: ${{ parameters.acm_deployment_location }}
+              aws_access_key: ${{ parameters.aws_access_key }}
+              aws_secret_key: ${{ parameters.aws_secret_key }}
+              deploy_changes: ${{ parameters.deploy_changes }}
+              deployment_location: ${{ parameters.deployment_location }}
+              deployment_name: ${{ parameters.env_prefix }}
+              dist_folder: $(Build.SourcesDirectory)/slate-frontend/dist
+              domain_name: ${{ parameters.domain_name }}
+              terraform_working_directory: $(Build.SourcesDirectory)/infrastructure/frontend/terraform
+              tf_logging_level: ${{ parameters.tf_logging_level }}
+              tfstate_bucket: ${{ parameters.tfstate_bucket }}
+              tfstate_key: ${{ parameters.tfstate_key }}
+              tfstate_region: ${{ parameters.tfstate_region }}

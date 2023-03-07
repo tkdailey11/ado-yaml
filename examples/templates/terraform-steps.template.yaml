@@ -1,0 +1,76 @@
+parameters:
+  # String parameters
+  - name: acm_deployment_location
+  - name: aws_access_key
+  - name: aws_secret_key
+  - name: deployment_location
+  - name: deployment_name
+  - name: dist_folder
+  - name: domain_name
+  - name: terraform_working_directory
+  - name: tf_logging_level
+  - name: tfstate_bucket
+  - name: tfstate_key
+  - name: tfstate_region
+  # Boolean parameters
+  - name: deploy_changes
+    type: boolean
+
+steps:
+  - task: TerraformInstaller@0
+    displayName: Install Terraform CLI
+    inputs:
+      terraformVersion: "1.2.5"
+
+  - bash: |
+      terraform init \
+        -backend-config="bucket=$TF_STATE_BUCKET" \
+        -backend-config="key=$TF_STATE_KEY" \
+        -backend-config="region=$TF_STATE_REGION"
+    displayName: Terraform Init
+    workingDirectory: ${{ parameters.terraform_working_directory }}
+    failOnStderr: true
+    continueOnError: false
+    env:
+      AWS_ACCESS_KEY_ID: ${{ parameters.aws_access_key }}
+      AWS_DEFAULT_REGION: ${{ parameters.tfstate_region }}
+      AWS_SECRET_ACCESS_KEY: ${{ parameters.aws_secret_key }}
+      TF_STATE_BUCKET: ${{ parameters.tfstate_bucket }}
+      TF_STATE_KEY: ${{ parameters.tfstate_key }}
+      TF_STATE_REGION: ${{ parameters.tfstate_region }}
+
+  - bash: terraform validate
+    displayName: Terraform Validate
+    failOnStderr: true
+    continueOnError: false
+    workingDirectory: ${{ parameters.terraform_working_directory }}
+
+  - bash: terraform plan -out deployment.tfplan
+    displayName: Terraform Plan
+    failOnStderr: true
+    continueOnError: false
+    workingDirectory: ${{ parameters.terraform_working_directory }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ parameters.aws_access_key }}
+      AWS_DEFAULT_REGION: ${{ parameters.tfstate_region }}
+      AWS_SECRET_ACCESS_KEY: ${{ parameters.aws_secret_key }}
+      TF_VAR_acm_deployment_location: ${{ parameters.acm_deployment_location }}
+      TF_VAR_deployment_location: ${{ parameters.deployment_location }}
+      TF_VAR_deployment_name: ${{ parameters.deployment_name }}
+      TF_VAR_dist_folder: ${{ parameters.dist_folder }}
+      TF_VAR_domain_name: ${{ parameters.domain_name }}
+      ${{ if ne(parameters.tf_logging_level, 'NA') }}:
+        TF_LOG: ${{ parameters.tf_logging_level }}
+
+  - ${{ if eq(parameters.deploy_changes, true) }}:
+      - bash: terraform apply -auto-approve deployment.tfplan
+        displayName: Terraform Apply
+        failOnStderr: true
+        continueOnError: false
+        workingDirectory: ${{ parameters.terraform_working_directory }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ parameters.aws_access_key }}
+          AWS_DEFAULT_REGION: ${{ parameters.tfstate_region }}
+          AWS_SECRET_ACCESS_KEY: ${{ parameters.aws_secret_key }}
+          ${{ if ne(parameters.tf_logging_level, 'NA') }}:
+            TF_LOG: ${{ parameters.tf_logging_level }}

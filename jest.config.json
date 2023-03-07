@@ -1,0 +1,11 @@
+{
+  "transform": {
+    "^.+\\.(t|j)s?$": "@swc/jest"
+  },
+  "transformIgnorePatterns": [],
+  "extensionsToTreatAsEsm": [".ts"],
+  "testEnvironment": "node",
+  "moduleNameMapper": {
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  }
+}

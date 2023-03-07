@@ -1,0 +1,52 @@
+# Don't trigger pipeline based on changes to the infrastructure repository
+trigger: none
+
+resources:
+  repositories:
+    - repository: slate-frontend
+      type: git
+      name: Slate/slate-frontend
+      ref: dev
+      trigger:
+        branches:
+          include:
+            - dev
+
+parameters:
+  - name: run_tests
+    displayName: Run Tests
+    type: boolean
+    default: false
+  - name: deploy_changes
+    displayName: Deploy Changes
+    type: boolean
+    default: true
+  - name: tf_logging_level
+    type: string
+    displayName: TF Logging Level
+    default: NA
+    values:
+      - TRACE
+      - DEBUG
+      - INFO
+      - WARN
+      - ERROR
+      - NA
+
+variables:
+  - group: aws_common
+
+pool:
+  vmImage: ubuntu-latest
+
+extends:
+  template: templates/base-stages.template.yaml
+  parameters:
+    aws_access_key: $(aws_tf_access_key)
+    aws_secret_key: $(aws_tf_secret_key)
+    deploy_changes: ${{ parameters.deploy_changes }}
+    deployment: dev
+    env_prefix: slate-dev
+    run_tests: ${{ parameters.run_tests }}
+    tf_logging_level: ${{ parameters.tf_logging_level }}
+    tfstate_key: slate-frontend-dev
